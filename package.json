@@ -1,0 +1,12 @@
+{
+  "name": "gig-shipping-bridge",
+  "version": "1.0.0",
+  "description": "Shopify Carrier Service for GIG Logistics",
+  "main": "api/rates.js",
+  "scripts": {
+    "start": "node api/rates.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.0"
+  }
+}
