@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     });
     const locData = await locRes.json();
     
-    // Find the active location or the first one in the list
+    // Finds the active location (e.g., your Oshodi Warehouse)
     const primaryLoc = locData.locations?.find(l => l.active) || locData.locations?.[0];
 
     if (!primaryLoc) {
@@ -24,13 +24,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ rates: [] });
     }
 
-    // Build Sender String (Optimized for Oshodi/Lagos/PH)
-    const sParts = [primaryLoc.address1, primaryLoc.city, primaryLoc.province, "Nigeria"]
-      .filter(p => p && p.trim() !== "");
+    // Build Sender String (Omit Zip for better Nominatim match reliability in Nigeria)
+    const sParts = [
+      primaryLoc.address1, 
+      primaryLoc.city, 
+      primaryLoc.province, 
+      "Nigeria"
+    ].filter(p => p && p.trim() !== "");
     const sAddrStr = sParts.join(", ");
 
     const sGeoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sAddrStr)}&limit=1`, {
-        headers: { "User-Agent": "GIGShopifyBridge/1.7" }
+        headers: { "User-Agent": "GIGShopifyBridge/1.8" }
     });
     const sGeoData = await sGeoRes.json();
 
@@ -39,19 +43,34 @@ export default async function handler(req, res) {
     const rCountry = countryMap[dest.country] || dest.country;
 
     // Use Address1, City, and Province for the most reliable map match
-    const rParts = [dest.address1, dest.city, dest.province, rCountry]
-      .filter(p => p && p.trim() !== "");
+    const rParts = [
+      dest.address1, 
+      dest.city, 
+      dest.province, 
+      rCountry
+    ].filter(p => p && p.trim() !== "");
     const rAddrStr = rParts.join(", ");
 
     const rGeoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(rAddrStr)}&limit=1`, {
-        headers: { "User-Agent": "GIGShopifyBridge/1.7" }
+        headers: { "User-Agent": "GIGShopifyBridge/1.8" }
     });
     const rGeoData = await rGeoRes.json();
 
-    // --- STEP 3: STRICT VALIDATION (No Fallback) ---
-    if (!sGeoData?.[0] || !rGeoData?.[0]) {
-      console.warn(`STRICT FAILURE: Map lookup failed. Sender Found: ${!!sGeoData?.[0]}, Receiver Found: ${!!rGeoData?.[0]}`);
-      return res.status(200).json({ rates: [] });
+    // --- STEP 3: FALLBACK CHECK (The Safety Net) ---
+    const senderFound = sGeoData && sGeoData.length > 0;
+    const receiverFound = rGeoData && rGeoData.length > 0;
+
+    if (!senderFound || !receiverFound) {
+      console.warn(`Geocoding failed. S:${senderFound} R:${receiverFound}. Using Fallback.`);
+      return res.status(200).json({
+        rates: [{
+          service_name: "GIG Logistics (Standard Delivery)",
+          service_code: "GIG-STD",
+          total_price: "650000", // ₦6,500
+          currency: "NGN",
+          description: "Standard regional shipping rate"
+        }]
+      });
     }
 
     // --- STEP 4: GIG API CALL (All Items Included) ---
@@ -76,26 +95,34 @@ export default async function handler(req, res) {
         "ShipmentItems": rate.items.map(i => ({
           "ItemName": i.name,
           "Quantity": i.quantity,
-          "Weight": (i.grams / 1000) || 0.5,
+          "Weight": (i.grams / 1000) || 0.5, // Converts grams to KG
           "IsVolumetric": false,
           "ShipmentType": 1,
-          "Value": Math.round(i.price / 100)
+          "Value": Math.round(i.price / 100) // Converts kobo to Naira
         }))
       })
     });
 
     const gigResult = await gigRes.json();
 
+    // If GIG API returns an error or no route, use Fallback
     if (!gigResult.data || !gigResult.data.GrandTotal) {
-      console.error("GIG API: No pricing found for this specific route.");
-      return res.status(200).json({ rates: [] });
+      console.error("GIG API failure. Using Fallback.");
+      return res.status(200).json({
+        rates: [{
+          service_name: "GIG Logistics (Standard Delivery)",
+          service_code: "GIG-STD-FALLBACK",
+          total_price: "650000",
+          currency: "NGN"
+        }]
+      });
     }
 
-    // --- STEP 5: FINAL RESPONSE ---
+    // --- STEP 5: FINAL SUCCESS RESPONSE ---
     return res.status(200).json({
       rates: [{
         service_name: "GIG Logistics",
-        service_code: "GIG-STRICT-ADMIN-SYNC",
+        service_code: "GIG-PRECISION-LIVE",
         total_price: (Math.round(gigResult.data.GrandTotal * 100)).toString(), 
         currency: "NGN",
         description: "Live calculated delivery rate"
@@ -104,6 +131,14 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Critical Bridge Error:", error.message);
-    return res.status(200).json({ rates: [] });
+    // Ultimate safety return so checkout never breaks
+    return res.status(200).json({
+        rates: [{
+          service_name: "GIG Logistics (Standard Delivery)",
+          service_code: "GIG-CRITICAL-FALLBACK",
+          total_price: "650000",
+          currency: "NGN"
+        }]
+      });
   }
 }
