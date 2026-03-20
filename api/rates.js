@@ -1,51 +1,82 @@
 export default async function handler(req, res) {
-  // Only allow POST requests from Shopify
+  // 1. Security & Method Check
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   const { rate } = req.body;
   const shopDomain = 's6bcd1-ar.myshopify.com';
-  
-  // Credentials from Environment Variables
   const adminToken = process.env.SHOPIFY_ADMIN_TOKEN; 
   const gigToken = process.env.GIG_ACCESS_TOKEN; 
 
   try {
-    // 1. GET SENDER (Shopify Location)
+    // --- STEP 1: DYNAMIC SENDER (Your Store) ---
     const locRes = await fetch(`https://${shopDomain}/admin/api/2026-01/locations.json`, {
       headers: { "X-Shopify-Access-Token": adminToken }
     });
     const locData = await locRes.json();
     const primaryLoc = locData.locations?.find(l => l.active) || locData.locations?.[0];
 
-    // STRICT CHECK: Does the Store have Latitude/Longitude set?
-    const senderLat = parseFloat(primaryLoc?.latitude);
-    const senderLon = parseFloat(primaryLoc?.longitude);
-
-    if (!senderLat || !senderLon) {
-      console.error("STRICT ERROR: Store location coordinates are missing in Shopify Admin.");
+    if (!primaryLoc) {
+      console.error("No Shopify locations found.");
       return res.status(200).json({ rates: [] });
     }
 
-    // 2. GET RECEIVER (Customer Geocoding)
-    const dest = rate.destination;
-    // We use "Nigeria" instead of "NG" for better Nominatim matching accuracy
-    const addressStr = `${dest.address1}, ${dest.city}, Nigeria`;
-    
-    const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressStr)}&limit=1`, {
-        headers: { "User-Agent": "GIGShopifyBridge/1.1 (Internal Logistics)" }
+    // Build Precise Sender String for Nominatim
+    const sParts = [
+      primaryLoc.address1, 
+      primaryLoc.city, 
+      primaryLoc.province, 
+      primaryLoc.zip, 
+      primaryLoc.country_name
+    ].filter(p => p && p.trim() !== "");
+    const sAddrStr = sParts.join(", ");
+
+    const sGeoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sAddrStr)}&limit=1`, {
+        headers: { "User-Agent": "GIGShopifyBridge/1.2" }
     });
-    const geoData = await geoRes.json();
+    const sGeoData = await sGeoRes.json();
 
-    // STRICT CHECK: Did the geocoder find the customer's address?
-    if (!geoData || geoData.length === 0) {
-      console.warn("STRICT ERROR: Geocoding failed for customer address:", addressStr);
-      return res.status(200).json({ rates: [] });
+    // --- STEP 2: DYNAMIC RECEIVER (The Customer) ---
+    const dest = rate.destination;
+    
+    // Map Country Code to Full Name for better accuracy
+    const countryMap = { "NG": "Nigeria" };
+    const countryName = countryMap[dest.country] || dest.country;
+
+    const rParts = [
+      dest.address1, 
+      dest.address2, 
+      dest.city, 
+      dest.province, 
+      dest.postal_code, 
+      countryName
+    ].filter(p => p && p.trim() !== "");
+    const rAddrStr = rParts.join(", ");
+
+    const rGeoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(rAddrStr)}&limit=1`, {
+        headers: { "User-Agent": "GIGShopifyBridge/1.2" }
+    });
+    const rGeoData = await rGeoRes.json();
+
+    // --- STEP 3: LOGIC CHECK & FALLBACK ---
+    const senderFound = sGeoData && sGeoData.length > 0;
+    const receiverFound = rGeoData && rGeoData.length > 0;
+
+    if (!senderFound || !receiverFound) {
+      console.warn(`Geocoding failed. S:${senderFound} R:${receiverFound}. Using Fallback.`);
+      
+      // If map fails, return a safe Flat Rate so the customer can still buy
+      return res.status(200).json({
+        rates: [{
+          service_name: "GIG Logistics (Standard Delivery)",
+          service_code: "GIG-STD-FALLBACK",
+          total_price: "650000", // ₦6,500 Flat Rate
+          currency: "NGN",
+          description: "Calculated based on regional shipping zones"
+        }]
+      });
     }
 
-    const receiverLat = parseFloat(geoData[0].lat);
-    const receiverLon = parseFloat(geoData[0].lon);
-
-    // 3. CALL GIG API (Only reached if both sets of coordinates are valid)
+    // --- STEP 4: GIG API CALL (Only if Lat/Long exists) ---
     const gigRes = await fetch("https://dev-thirdpartynode.theagilitysystems.com/price/v3", {
       method: "POST",
       headers: { 
@@ -55,19 +86,19 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         "VehicleType": 1,
         "ReceiverLocation": { 
-          "Latitude": receiverLat, 
-          "Longitude": receiverLon 
+          "Latitude": parseFloat(rGeoData[0].lat), 
+          "Longitude": parseFloat(rGeoData[0].lon) 
         },
         "SenderLocation": { 
-          "Latitude": senderLat, 
-          "Longitude": senderLon 
+          "Latitude": parseFloat(sGeoData[0].lat), 
+          "Longitude": parseFloat(sGeoData[0].lon) 
         },
         "IsPriorityShipment": false,
         "PickUpOptions": 0,
         "ShipmentItems": rate.items.map(i => ({
           "ItemName": i.name,
           "Quantity": i.quantity,
-          "Weight": (i.grams / 1000) || 0.5, // Defaulting to 0.5kg if 0
+          "Weight": (i.grams / 1000) || 0.5,
           "IsVolumetric": false,
           "ShipmentType": 1,
           "Value": Math.round(i.price / 100)
@@ -76,28 +107,26 @@ export default async function handler(req, res) {
     });
 
     const gigResult = await gigRes.json();
-    
-    // Safety check for GIG API response structure
+
     if (!gigResult.data || !gigResult.data.GrandTotal) {
-      console.error("GIG API Error or No Route:", JSON.stringify(gigResult));
+      console.error("GIG API returned no data:", JSON.stringify(gigResult));
       return res.status(200).json({ rates: [] });
     }
 
-    const totalAmount = gigResult.data.GrandTotal;
-
-    // 4. RETURN TO SHOPIFY
+    // --- STEP 5: FINAL RESPONSE TO SHOPIFY ---
     return res.status(200).json({
       rates: [{
         service_name: "GIG Logistics",
-        service_code: "GIG-DYNAMIC-STRICT",
-        total_price: (Math.round(totalAmount * 100)).toString(), 
+        service_code: "GIG-DYNAMIC-PRECISE",
+        total_price: (Math.round(gigResult.data.GrandTotal * 100)).toString(), 
         currency: "NGN",
-        description: "Rate based on exact location coordinates"
+        description: "Live calculated rate based on exact location"
       }]
     });
 
   } catch (error) {
     console.error("Bridge Critical Failure:", error);
+    // Return empty so Shopify knows the bridge is down but doesn't crash the checkout
     return res.status(200).json({ rates: [] });
   }
 }
