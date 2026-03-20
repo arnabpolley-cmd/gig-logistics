@@ -45,6 +45,12 @@ export default async function handler(req, res) {
     const rGeoData = await rGeoRes.json();
 
     // --- STEP 3: STRICT VALIDATION (No Fallback) ---
+    if (!sGeoData?.[0]) {
+      console.warn("STRICT FAILURE: Map lookup failed for sender");
+    }
+    if (!rGeoData?.[0]) {
+      console.warn("STRICT FAILURE: Map lookup failed for reciever");
+    }
     if (!sGeoData?.[0] || !rGeoData?.[0]) {
       console.warn("STRICT FAILURE: Map lookup failed. Returning zero rates.");
       return res.status(200).json({ rates: [] });
