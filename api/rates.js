@@ -29,12 +29,12 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         "VehicleType": 1,
         "ReceiverLocation": { 
-          "Latitude": parseFloat(geoData[0]?.lat || 6.4654), 
-          "Longitude": parseFloat(geoData[0]?.lon || 3.4064) 
+          "Latitude": parseFloat(geoData[0]?.lat), 
+          "Longitude": parseFloat(geoData[0]?.lon) 
         },
         "SenderLocation": { 
-          "Latitude": parseFloat(primaryLoc.latitude || 9.057), 
-          "Longitude": parseFloat(primaryLoc.longitude || 7.495) 
+          "Latitude": parseFloat(primaryLoc.latitude), 
+          "Longitude": parseFloat(primaryLoc.longitude) 
         },
         "IsPriorityShipment": false,
         "PickUpOptions": 0,
