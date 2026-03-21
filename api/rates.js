@@ -24,9 +24,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ rates: [] });
     }
 
-    // Build Sender String (Include all address components for better geocoding accuracy)
+    // Build Sender String (Use cleaner address format for better geocoding)
+    const cleanAddress1 = primaryLoc.address1?.replace(/^,\s*|\s*,\s*$/g, '').replace(/,\s*,\s*/g, ', ');
     const sParts = [
-      primaryLoc.address1,
+      cleanAddress1,
       primaryLoc.address2,
       primaryLoc.city,
       primaryLoc.province,
@@ -66,6 +67,8 @@ export default async function handler(req, res) {
 
     // Log detailed sender information
     console.log("=== SENDER DETAILS ===");
+    console.log("Original Address1:", primaryLoc.address1);
+    console.log("Cleaned Address1:", cleanAddress1);
     console.log("Address Components:", {
       address1: primaryLoc.address1,
       address2: primaryLoc.address2,
