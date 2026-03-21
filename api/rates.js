@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const locRes = await fetch(`https://${shopDomain}/admin/api/2026-01/locations.json`, {
       headers: { "X-Shopify-Access-Token": adminToken }
     });
-    const locData = await locRes.json();
+    const locData = await locRes.json(); 
     
     // Finds the active location (e.g., your Oshodi Warehouse)
     const primaryLoc = locData.locations?.find(l => l.active) || locData.locations?.[0];
@@ -24,11 +24,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ rates: [] });
     }
 
-    // Build Sender String (Omit Zip for better Nominatim match reliability in Nigeria)
+    // Build Sender String (Include all address components for better geocoding accuracy)
     const sParts = [
-      primaryLoc.address1, 
-      primaryLoc.city, 
-      primaryLoc.province, 
+      primaryLoc.address1,
+      primaryLoc.address2,
+      primaryLoc.city,
+      primaryLoc.province,
+      primaryLoc.zip,
       "Nigeria"
     ].filter(p => p && p.trim() !== "");
     const sAddrStr = sParts.join(", ");
@@ -42,11 +44,13 @@ export default async function handler(req, res) {
     const dest = rate.destination;
     const rCountry = countryMap[dest.country] || dest.country;
 
-    // Use Address1, City, and Province for the most reliable map match
+    // Use all available address components for better geocoding accuracy
     const rParts = [
-      dest.address1, 
-      dest.city, 
-      dest.province, 
+      dest.address1,
+      dest.address2,
+      dest.city,
+      dest.province,
+      dest.postal_code,
       rCountry
     ].filter(p => p && p.trim() !== "");
     const rAddrStr = rParts.join(", ");
