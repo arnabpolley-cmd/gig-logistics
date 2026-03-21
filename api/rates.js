@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const locRes = await fetch(`https://${shopDomain}/admin/api/2026-01/locations.json`, {
       headers: { "X-Shopify-Access-Token": adminToken }
     });
-    const locData = await locRes.json(); 
+    const locData = await locRes.json();
     
     // Finds the active location (e.g., your Oshodi Warehouse)
     const primaryLoc = locData.locations?.find(l => l.active) || locData.locations?.[0];
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       primaryLoc.city,
       primaryLoc.province,
       primaryLoc.zip,
-      "Nigeria"
+      primaryLoc.country_name
     ].filter(p => p && p.trim() !== "");
     const sAddrStr = sParts.join(", ");
 
@@ -60,21 +60,55 @@ export default async function handler(req, res) {
     });
     const rGeoData = await rGeoRes.json();
 
-    // --- STEP 3: FALLBACK CHECK (The Safety Net) ---
+    // --- STEP 3: GEOCODING VALIDATION ---
     const senderFound = sGeoData && sGeoData.length > 0;
     const receiverFound = rGeoData && rGeoData.length > 0;
 
+    // Log detailed sender information
+    console.log("=== SENDER DETAILS ===");
+    console.log("Address Components:", {
+      address1: primaryLoc.address1,
+      address2: primaryLoc.address2,
+      city: primaryLoc.city,
+      province: primaryLoc.province,
+      zip: primaryLoc.zip,
+      country: primaryLoc.country_name
+    });
+    console.log("Geocoding Query:", sAddrStr);
+    console.log("Geocoding Result:", {
+      found: senderFound,
+      data: sGeoData,
+      result: senderFound ? {
+        lat: sGeoData[0].lat,
+        lon: sGeoData[0].lon,
+        display_name: sGeoData[0].display_name
+      } : "NO RESULTS FOUND"
+    });
+
+    // Log detailed receiver information
+    console.log("=== RECEIVER DETAILS ===");
+    console.log("Address Components:", {
+      address1: dest.address1,
+      address2: dest.address2,
+      city: dest.city,
+      province: dest.province,
+      postal_code: dest.postal_code,
+      country: rCountry
+    });
+    console.log("Geocoding Query:", rAddrStr);
+    console.log("Geocoding Result:", {
+      found: receiverFound,
+      data: rGeoData,
+      result: receiverFound ? {
+        lat: rGeoData[0].lat,
+        lon: rGeoData[0].lon,
+        display_name: rGeoData[0].display_name
+      } : "NO RESULTS FOUND"
+    });
+
     if (!senderFound || !receiverFound) {
-      console.warn(`Geocoding failed. S:${senderFound} R:${receiverFound}. Using Fallback.`);
-      return res.status(200).json({
-        rates: [{
-          service_name: "GIG Logistics (Standard Delivery)",
-          service_code: "GIG-STD",
-          total_price: "650000", // ₦6,500
-          currency: "NGN",
-          description: "Standard regional shipping rate"
-        }]
-      });
+      console.error(`Geocoding failed. S:${senderFound} R:${receiverFound}`);
+      return res.status(200).json({ rates: [] });
     }
 
     // --- STEP 4: GIG API CALL (All Items Included) ---
@@ -109,17 +143,10 @@ export default async function handler(req, res) {
 
     const gigResult = await gigRes.json();
 
-    // If GIG API returns an error or no route, use Fallback
+    // If GIG API returns an error or no route, return empty rates
     if (!gigResult.data || !gigResult.data.GrandTotal) {
-      console.error("GIG API failure. Using Fallback.");
-      return res.status(200).json({
-        rates: [{
-          service_name: "GIG Logistics (Standard Delivery)",
-          service_code: "GIG-STD-FALLBACK",
-          total_price: "650000",
-          currency: "NGN"
-        }]
-      });
+      console.error("GIG API failure:", gigResult);
+      return res.status(200).json({ rates: [] });
     }
 
     // --- STEP 5: FINAL SUCCESS RESPONSE ---
@@ -135,14 +162,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Critical Bridge Error:", error.message);
-    // Ultimate safety return so checkout never breaks
-    return res.status(200).json({
-        rates: [{
-          service_name: "GIG Logistics (Standard Delivery)",
-          service_code: "GIG-CRITICAL-FALLBACK",
-          total_price: "650000",
-          currency: "NGN"
-        }]
-      });
+    return res.status(200).json({ rates: [] });
   }
 }
