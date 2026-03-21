@@ -6,6 +6,7 @@ export default async function handler(req, res) {
   const shopDomain = 's6bcd1-ar.myshopify.com';
   const adminToken = process.env.SHOPIFY_ADMIN_TOKEN; 
   const gigToken = process.env.GIG_ACCESS_TOKEN; 
+  const mapboxApiKey = process.env.MAPBOX_ACCESS_TOKEN; 
 
   try {
     const countryMap = { "NG": "Nigeria" };
@@ -36,9 +37,7 @@ export default async function handler(req, res) {
     ].filter(p => p && p.trim() !== "");
     const sAddrStr = sParts.join(", ");
 
-    const sGeoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sAddrStr)}&limit=1`, {
-        headers: { "User-Agent": "GIGShopifyBridge/1.8" }
-    });
+    const sGeoRes = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(sAddrStr)}.json?access_token=${mapboxApiKey}`);
     const sGeoData = await sGeoRes.json();
 
     // --- STEP 2: RECEIVER (Customer Destination) ---
@@ -56,14 +55,12 @@ export default async function handler(req, res) {
     ].filter(p => p && p.trim() !== "");
     const rAddrStr = rParts.join(", ");
 
-    const rGeoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(rAddrStr)}&limit=1`, {
-        headers: { "User-Agent": "GIGShopifyBridge/1.8" }
-    });
+    const rGeoRes = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(rAddrStr)}.json?access_token=${mapboxApiKey}`);
     const rGeoData = await rGeoRes.json();
 
     // --- STEP 3: GEOCODING VALIDATION ---
-    const senderFound = sGeoData && sGeoData.length > 0;
-    const receiverFound = rGeoData && rGeoData.length > 0;
+    const senderFound = sGeoData.features && sGeoData.features.length > 0;
+    const receiverFound = rGeoData.features && rGeoData.features.length > 0;
 
     // Log detailed sender information
     console.log("=== SENDER DETAILS ===");
@@ -82,9 +79,9 @@ export default async function handler(req, res) {
       found: senderFound,
       data: sGeoData,
       result: senderFound ? {
-        lat: sGeoData[0].lat,
-        lon: sGeoData[0].lon,
-        display_name: sGeoData[0].display_name
+        lat: sGeoData.features[0].center[1],
+        lon: sGeoData.features[0].center[0],
+        place_name: sGeoData.features[0].place_name
       } : "NO RESULTS FOUND"
     });
 
@@ -103,9 +100,9 @@ export default async function handler(req, res) {
       found: receiverFound,
       data: rGeoData,
       result: receiverFound ? {
-        lat: rGeoData[0].lat,
-        lon: rGeoData[0].lon,
-        display_name: rGeoData[0].display_name
+        lat: rGeoData.features[0].center[1],
+        lon: rGeoData.features[0].center[0],
+        place_name: rGeoData.features[0].place_name
       } : "NO RESULTS FOUND"
     });
 
@@ -124,12 +121,12 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         "VehicleType": 1,
         "ReceiverLocation": { 
-          "Latitude": parseFloat(rGeoData[0].lat), 
-          "Longitude": parseFloat(rGeoData[0].lon) 
+          "Latitude": rGeoData.features[0].center[1], 
+          "Longitude": rGeoData.features[0].center[0] 
         },
         "SenderLocation": { 
-          "Latitude": parseFloat(sGeoData[0].lat), 
-          "Longitude": parseFloat(sGeoData[0].lon) 
+          "Latitude": sGeoData.features[0].center[1], 
+          "Longitude": sGeoData.features[0].center[0] 
         },
         "IsPriorityShipment": false,
         "PickUpOptions": 0,
