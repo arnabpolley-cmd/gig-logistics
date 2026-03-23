@@ -6,7 +6,8 @@ export default async function handler(req, res) {
   const shopDomain = 's6bcd1-ar.myshopify.com';
   const adminToken = process.env.SHOPIFY_ADMIN_TOKEN; 
   const gigToken = process.env.GIG_ACCESS_TOKEN; 
-  const mapboxApiKey = process.env.MAPBOX_ACCESS_TOKEN; 
+  // Google Maps API Key from environment variable
+  const googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
 
   try {
     const countryMap = { "NG": "Nigeria" };
@@ -37,7 +38,8 @@ export default async function handler(req, res) {
     ].filter(p => p && p.trim() !== "");
     const sAddrStr = sParts.join(", ");
 
-    const sGeoRes = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(sAddrStr)}.json?access_token=${mapboxApiKey}`);
+    // Google Maps Geocoding API for Sender
+    const sGeoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(sAddrStr)}&key=${googleApiKey}`);
     const sGeoData = await sGeoRes.json();
 
     // --- STEP 2: RECEIVER (Customer Destination) ---
@@ -55,12 +57,13 @@ export default async function handler(req, res) {
     ].filter(p => p && p.trim() !== "");
     const rAddrStr = rParts.join(", ");
 
-    const rGeoRes = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(rAddrStr)}.json?access_token=${mapboxApiKey}`);
+    // Google Maps Geocoding API for Receiver
+    const rGeoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(rAddrStr)}&key=${googleApiKey}`);
     const rGeoData = await rGeoRes.json();
 
     // --- STEP 3: GEOCODING VALIDATION ---
-    const senderFound = sGeoData.features && sGeoData.features.length > 0;
-    const receiverFound = rGeoData.features && rGeoData.features.length > 0;
+    const senderFound = sGeoData.results && sGeoData.results.length > 0;
+    const receiverFound = rGeoData.results && rGeoData.results.length > 0;
 
     // Log detailed sender information
     console.log("=== SENDER DETAILS ===");
@@ -79,9 +82,9 @@ export default async function handler(req, res) {
       found: senderFound,
       data: sGeoData,
       result: senderFound ? {
-        lat: sGeoData.features[0].center[1],
-        lon: sGeoData.features[0].center[0],
-        place_name: sGeoData.features[0].place_name
+        lat: sGeoData.results[0].geometry.location.lat,
+        lon: sGeoData.results[0].geometry.location.lng,
+        place_name: sGeoData.results[0].formatted_address
       } : "NO RESULTS FOUND"
     });
 
@@ -100,9 +103,9 @@ export default async function handler(req, res) {
       found: receiverFound,
       data: rGeoData,
       result: receiverFound ? {
-        lat: rGeoData.features[0].center[1],
-        lon: rGeoData.features[0].center[0],
-        place_name: rGeoData.features[0].place_name
+        lat: rGeoData.results[0].geometry.location.lat,
+        lon: rGeoData.results[0].geometry.location.lng,
+        place_name: rGeoData.results[0].formatted_address
       } : "NO RESULTS FOUND"
     });
 
@@ -121,12 +124,12 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         "VehicleType": 1,
         "ReceiverLocation": { 
-          "Latitude": rGeoData.features[0].center[1], 
-          "Longitude": rGeoData.features[0].center[0] 
+          "Latitude": rGeoData.results[0].geometry.location.lat, 
+          "Longitude": rGeoData.results[0].geometry.location.lng 
         },
         "SenderLocation": { 
-          "Latitude": sGeoData.features[0].center[1], 
-          "Longitude": sGeoData.features[0].center[0] 
+          "Latitude": sGeoData.results[0].geometry.location.lat, 
+          "Longitude": sGeoData.results[0].geometry.location.lng 
         },
         "IsPriorityShipment": false,
         "PickUpOptions": 0,
