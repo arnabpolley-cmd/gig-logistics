@@ -108,7 +108,19 @@ export default async function handler(req, res) {
         place_name: rGeoData.results[0].formatted_address
       } : "NO RESULTS FOUND"
     });
-
+    // Log shipment items in object format before sending to GIG Logistics API
+    console.log("Shipment Items Sent to GIG:");
+    rate.items.forEach((i, idx) => {
+      console.log({
+        ItemName: i.name,
+        Quantity: i.quantity,
+        Weight: (i.grams / 1000) || 0.5,
+        IsVolumetric: false,
+        ShipmentType: 1,
+        Value: Math.round(i.price / 100),
+        Description: i.title || i.name
+      });
+    });
     if (!senderFound || !receiverFound) {
       console.error(`Geocoding failed. S:${senderFound} R:${receiverFound}`);
       return res.status(200).json({ rates: [] });
@@ -138,7 +150,9 @@ export default async function handler(req, res) {
           "Quantity": i.quantity,
           "Weight": (i.grams / 1000) || 0.5, // Converts grams to KG
           "IsVolumetric": false,
-          "ShipmentType": 1
+          "ShipmentType": 1,
+          "Value": Math.round(i.price / 100), // Converts kobo to Naira
+          "Description": i.title || i.name
         }))
       })
     });
