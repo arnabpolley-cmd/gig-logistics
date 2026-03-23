@@ -138,8 +138,7 @@ export default async function handler(req, res) {
           "Quantity": i.quantity,
           "Weight": (i.grams / 1000) || 0.5, // Converts grams to KG
           "IsVolumetric": false,
-          "ShipmentType": 1,
-          "Value": Math.round(i.price / 100) // Converts kobo to Naira
+          "ShipmentType": 1
         }))
       })
     });
