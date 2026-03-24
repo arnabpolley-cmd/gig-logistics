@@ -149,7 +149,7 @@ export default async function handler(req, res) {
         "ShipmentItems": rate.items.map(i => ({
           "ItemName": i.name,
           "Quantity": i.quantity,
-          "Weight": (i.grams / 1000) || 0.5, // Converts grams to KG
+          "Weight": (i.grams / 1000), // Converts grams to KG
           "IsVolumetric": false,
           "ShipmentType": 1,
           "Value": Math.round((i.price * i.quantity) / 100), // Converts total value (kobo) to Naira
@@ -171,7 +171,7 @@ export default async function handler(req, res) {
       rates: [{
         service_name: "GIG Logistics",
         service_code: "GIG-PRECISION-LIVE",
-        total_price: (Math.round(gigResult.data.GrandTotal * 100)).toString(), 
+        total_price: (Math.round(gigResult.data.GrandTotal)).toString(), 
         currency: "NGN",
         description: "Live calculated delivery rate"
       }]
