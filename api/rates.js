@@ -148,11 +148,11 @@ export default async function handler(req, res) {
         "PickUpOptions": 0,
         "ShipmentItems": rate.items.map(i => ({
           "ItemName": i.name,
-          "Quantity": i.quantity,
-          "Weight": (i.grams / 1000), // Converts grams to KG
+          "Quantity": 1,
+          "Weight": 0, // Converts grams to KG
           "IsVolumetric": false,
           "ShipmentType": 1,
-          "Value": Math.round((i.price * i.quantity) / 100), // Converts total value (kobo) to Naira
+          "Value": 1, // Converts total value (kobo) to Naira
           "Description": i.title || i.name
         }))
       })
