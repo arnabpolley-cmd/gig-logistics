@@ -152,7 +152,7 @@ export default async function handler(req, res) {
           "Weight": (i.grams / 1000), // Converts grams to KG
           "IsVolumetric": false,
           "ShipmentType": 1,
-          "Value": Math.round((i.price * i.quantity) / 100), // Converts total value (kobo) to Naira
+          "Value": Math.round((i.price * i.quantity)),
           "Description": i.title || i.name
         }))
       })
