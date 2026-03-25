@@ -167,11 +167,20 @@ export default async function handler(req, res) {
     }
 
     // --- STEP 5: FINAL SUCCESS RESPONSE ---
+    console.log("Gig Logistics Result:", {
+      rates: [{
+        service_name: "GIG Logistics",
+        service_code: "GIG-PRECISION-LIVE",
+        total_price: (gigResult.data.GrandTotal).toString(), 
+        currency: "NGN",
+        description: "Live calculated delivery rate"
+      }]
+    });
     return res.status(200).json({
       rates: [{
         service_name: "GIG Logistics",
         service_code: "GIG-PRECISION-LIVE",
-        total_price: (Math.round(gigResult.data.GrandTotal)).toString(), 
+        total_price: (gigResult.data.GrandTotal).toString(), 
         currency: "NGN",
         description: "Live calculated delivery rate"
       }]
