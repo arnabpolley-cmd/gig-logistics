@@ -118,7 +118,7 @@ export default async function handler(req, res) {
         IsVolumetric: false,
         ShipmentType: 1,
         Value: Math.round((i.price * i.quantity) / 100),
-        Actual_Value: Math.round((i.price * i.quantity)),
+        Actual_Value: i.price * i.quantity,
         Description: i.title || i.name
       });
     });
