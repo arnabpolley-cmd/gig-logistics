@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+  console.log("FULL REQUEST FROM SHOPIFY:", JSON.stringify(req.body, null, 2));
   // 1. Method & Security Check
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
