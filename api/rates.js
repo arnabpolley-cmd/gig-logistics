@@ -178,7 +178,7 @@ export default async function handler(req, res) {
       }]
     });
     // Use Math.round to ensure no decimals are sent in the string
-    const finalPrice = Math.round(parseFloat(gigResult.data.GrandTotal)).toString();
+    const finalPrice = gigResult.data.GrandTotal.toString();
     return res.status(200).json({
       rates: [{
         service_name: "GIG Logistics",
