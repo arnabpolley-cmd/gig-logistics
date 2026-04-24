@@ -185,7 +185,7 @@ export default async function handler(req, res) {
         service_code: "Standard Shipping",
         total_price: finalPrice, 
         currency: "NGN",
-        description: "Live calculated delivery rate"
+        description: ""
       }]
     });
  
