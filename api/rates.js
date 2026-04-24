@@ -6,11 +6,31 @@ export default async function handler(req, res) {
   const { rate } = req.body;
   const shopDomain = 's6bcd1-ar.myshopify.com';
   const adminToken = process.env.SHOPIFY_ADMIN_TOKEN; 
-  const gigToken = process.env.GIG_ACCESS_TOKEN; 
   // Google Maps API Key from environment variable
   const googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
 
   try {
+    // --- NEW: DYNAMIC GIG TOKEN GENERATION ---
+    const loginRes = await fetch('https://dev-thirdpartynode.theagilitysystems.com/login', {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': adminToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        "email": "gigtestsystems@gmail.com",
+        "password": "GiGL1324@!"
+      })
+    });
+
+    const loginData = await loginRes.json();
+    const gigToken = loginData.Object?.access_token;
+
+    if (!gigToken) {
+      console.error("Failed to generate GIG access token:", loginData);
+      return res.status(200).json({ rates: [] });
+    }
+
     const countryMap = { "NG": "Nigeria" };
 
     // --- STEP 1: SENDER (Fetching from Shopify Admin Locations) ---
