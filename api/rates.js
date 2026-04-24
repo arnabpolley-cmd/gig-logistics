@@ -181,7 +181,7 @@ export default async function handler(req, res) {
     const finalPrice = gigResult.data.GrandTotal.toString();
     return res.status(200).json({
       rates: [{
-        service_name: "Charges",
+        service_name: "Chargese",
         service_code: "Standard Shipping",
         total_price: finalPrice, 
         currency: "NGN",
