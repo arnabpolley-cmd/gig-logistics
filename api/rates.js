@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     });
 
     const loginData = await loginRes.json();
-    const gigToken = loginData.Object?.access_token;
+    const gigToken = loginData.data?.access-token;
 
     if (!gigToken) {
       console.error("Failed to generate GIG access token:", loginData);
