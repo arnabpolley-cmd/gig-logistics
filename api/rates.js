@@ -24,10 +24,12 @@ export default async function handler(req, res) {
     });
 
     const loginData = await loginRes.json();
-    const gigToken = loginData.data?.access-token;
+    
+    // Corrected path based on your provided log: loginData.data['access-token']
+    const gigToken = loginData.data?.['access-token'];
 
     if (!gigToken) {
-      console.error("Failed to generate GIG access token:", loginData);
+      console.error("Failed to generate GIG access token. Full Response:", JSON.stringify(loginData, null, 2));
       return res.status(200).json({ rates: [] });
     }
 
